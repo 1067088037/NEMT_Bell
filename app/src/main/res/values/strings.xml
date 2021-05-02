@@ -1,7 +1,5 @@
 <resources>
     <string name="app_name">高考铃声</string>
-    <string name="mainTitle">自动模式\n铃声已经启动\n请勿锁定手机屏幕</string>
-    <string name="subtitle"> </string>
     <string name="autoMode">自动模式</string>
     <string name="manualMode">手动模式</string>
     <string name="audioSource">音频来源</string>

@@ -11,51 +11,24 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import kotlinx.android.synthetic.main.activity_main.*
+import androidx.databinding.DataBindingUtil
+import androidx.lifecycle.ViewModelProvider
+import com.shishi.nemt_bell.databinding.ActivityMainBinding
 import java.io.File
 import java.util.*
 import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
 
+    lateinit var viewModel: MainViewModel
+    lateinit var dataBinding: ActivityMainBinding
+
     lateinit var db: SQLiteDatabase
     var testMode = 0
     var running = true
-    var auto = true
+    private var auto = true
         set(value) {
-            mediaPlayer.stop()
-            runOnUiThread {
-                mainTitle.text =
-                    if (value) {
-                        subject = -1
-                        "自动模式\n" +
-                                "铃声已经启动\n" +
-                                "请勿锁定手机屏幕\n"
-                    } else {
-                        st_time = System.currentTimeMillis() / 1000 + 3
-                        st_time += when (testMode){
-                            0 -> when (Constant.sourceIndex) {
-                                0 -> 45 * 60
-                                1 -> 50 * 60
-                                else -> 0
-                            }
-                            1 -> 15 * 60
-                            2 -> 5 * 60
-                            3 -> 0
-                            else -> 0
-                        }
-                        Toast.makeText(this, "考试已经开始，考试过程中请勿中途修改系统时间", Toast.LENGTH_SHORT).show()
-                        when (subject) {
-                            0 -> "语文/综合\n" +
-                                    "铃声已经启动\n" +
-                                    "请勿锁定手机屏幕\n"
-                            1 -> "数学/外语\n" +
-                                    "铃声已经启动\n" +
-                                    "请勿锁定手机屏幕\n"
-                            else -> ""
-                        }
-                    }
-            }
+            onAutoSet(value)
             field = value
         }
     var subject = -1
@@ -67,13 +40,16 @@ class MainActivity : AppCompatActivity() {
     var minute: Int = calendar.get(Calendar.MINUTE)
     var second: Int = calendar.get(Calendar.SECOND)
     lateinit var mediaPlayer: MediaPlayer
-    var last_ms = System.currentTimeMillis()
-    var st_time = System.currentTimeMillis() / 1000
+    private var lastMs = System.currentTimeMillis()
+    var stTime = System.currentTimeMillis() / 1000
     var pause = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
+        dataBinding = DataBindingUtil.setContentView(this, R.layout.activity_main)
+        dataBinding.data = viewModel
+        dataBinding.lifecycleOwner = this
 
         if (File(applicationContext.getExternalFilesDir("")?.absolutePath + "/NEMT_Bell.db").exists()
                 .not()
@@ -108,7 +84,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 } else {
-                    val now_s = (System.currentTimeMillis() / 1000).toInt() - st_time.toInt()
+                    val now_s = (System.currentTimeMillis() / 1000).toInt() - stTime.toInt()
                     when (subject) {
                         0 -> {
                             for (it in Constant.bell_a) {
@@ -130,7 +106,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
-                if (abs(last_ms - System.currentTimeMillis()) >= 1000) {
+                if (abs(lastMs - System.currentTimeMillis()) >= 1000) {
                     mediaPlayer.stop()
                     AlertDialog.Builder(this)
                         .setTitle("由于您中途修改了时间，手动模式结束")
@@ -138,7 +114,7 @@ class MainActivity : AppCompatActivity() {
                         .show()
                     auto = true
                 }
-                last_ms = System.currentTimeMillis()
+                lastMs = System.currentTimeMillis()
             }
         }.start()
     }
@@ -194,7 +170,7 @@ class MainActivity : AppCompatActivity() {
                     fun start() {
                         subject = index
                         auto = false
-                        db.execSQL("update mainTable set content = ${st_time} where item = 0")
+                        db.execSQL("update mainTable set content = ${stTime} where item = 0")
                         db.execSQL("update mainTable set content = ${subject} where item = 1")
                     }
 
@@ -247,7 +223,7 @@ class MainActivity : AppCompatActivity() {
                                     } while (cursor.moveToNext())
                                     cursor.close()
                                     auto = false
-                                    st_time = time
+                                    stTime = time
                                 }
                                 .setNegativeButton("重新开始") { _, _ ->
                                     chooseSubject()
@@ -265,8 +241,8 @@ class MainActivity : AppCompatActivity() {
             R.id.menu_audio -> {
                 AlertDialog.Builder(this)
                     .setTitle("请选择音频来源")
-                    .setItems(arrayOf("2018年四川高考原声", "2020年四川高考原声（默认）")) { _, which ->
-                        fun setSource(){
+                    .setItems(arrayOf("2018年全国卷高考原声", "2020年全国卷高考原声（默认）")) { _, which ->
+                        fun setSource() {
                             Constant.setSource(which)
                             mediaPlayer.stop()
                             auto = true
@@ -289,10 +265,10 @@ class MainActivity : AppCompatActivity() {
                 AlertDialog.Builder(this)
                     .setTitle("关于APP")
                     .setMessage(
-                        "[软件版本] 2.0\n" +
-                                "[版权声明] 四川省成都市石室中学CTY制作\n" +
-                                "[夹带私货] 欢迎报考华南理工大学！\n\n" +
+                        "[软件版本] 2.1\n" +
+                                "[版权声明] 华南理工大学 软件学院 Summer-lights\n\n" +
                                 "[更新记录]\n" +
+                                "2.1 - 2021年5月2日\n使用Android-Jetpack重构项目\n" +
                                 "2.0 - 2020年9月28日\n添加2020年四川高考语音包\n" +
                                 "1.0 - 2020年7月13日\n基于2018年四川高考语音包的首个版本"
                     )
@@ -318,6 +294,41 @@ class MainActivity : AppCompatActivity() {
         return super.onOptionsItemSelected(item)
     }
 
+    private fun onAutoSet(value: Boolean) {
+        mediaPlayer.stop()
+        viewModel.mainTitle.postValue(
+            if (value) {
+                subject = -1
+                "自动模式\n" +
+                        "铃声已经启动\n" +
+                        "请勿锁定手机屏幕\n"
+            } else {
+                stTime = System.currentTimeMillis() / 1000 + 3
+                stTime += when (testMode) {
+                    0 -> when (Constant.sourceIndex) {
+                        0 -> 45 * 60
+                        1 -> 50 * 60
+                        else -> 0
+                    }
+                    1 -> 15 * 60
+                    2 -> 5 * 60
+                    3 -> 0
+                    else -> 0
+                }
+                Toast.makeText(this, "考试已经开始，考试过程中请勿中途修改系统时间", Toast.LENGTH_SHORT).show()
+                when (subject) {
+                    0 -> "语文/综合\n" +
+                            "铃声已经启动\n" +
+                            "请勿锁定手机屏幕\n"
+                    1 -> "数学/外语\n" +
+                            "铃声已经启动\n" +
+                            "请勿锁定手机屏幕\n"
+                    else -> ""
+                }
+            }
+        )
+    }
+
     private fun updateSub() {
         calendar = Calendar.getInstance()
         year = calendar.get(Calendar.YEAR)
@@ -329,8 +340,8 @@ class MainActivity : AppCompatActivity() {
         val m = if (minute >= 10) minute.toString() else "0$minute"
         val s = if (second >= 10) second.toString() else "0$second"
         val audioSource = when (Constant.sourceIndex) {
-            0 -> "[音频来源]2018年四川高考\n"
-            1 -> "[音频来源]2020年四川高考\n"
+            0 -> "[音频来源]2018年高考全国卷\n"
+            1 -> "[音频来源]2020年高考全国卷\n"
             else -> ""
         }
         val text = audioSource + "${year}年${month}月${day}日 $hour:$m:$s \n" + if (auto) {
@@ -344,7 +355,7 @@ class MainActivity : AppCompatActivity() {
             if (hour >= 17) next = "最后一堂考试已经结束\n可以使用手动模式模拟考试"
             next
         } else {
-            val now_s = (System.currentTimeMillis() / 1000).toInt() - st_time.toInt()
+            val now_s = (System.currentTimeMillis() / 1000).toInt() - stTime.toInt()
             val s2 = abs(now_s) % 60
             val m2 = (abs(now_s) - s2) / 60
             val s3 = if (s2 >= 10) s2.toString() else "0$s2"
@@ -380,9 +391,7 @@ class MainActivity : AppCompatActivity() {
             }
             next
         }
-        runOnUiThread {
-            subTitle.text = text
-        }
+        viewModel.subTitle.postValue(text)
     }
 
 }

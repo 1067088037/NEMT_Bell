@@ -84,11 +84,11 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 } else {
-                    val now_s = (System.currentTimeMillis() / 1000).toInt() - stTime.toInt()
+                    val nowS = (System.currentTimeMillis() / 1000).toInt() - stTime.toInt()
                     when (subject) {
                         0 -> {
                             for (it in Constant.bell_a) {
-                                if (now_s == it.s && mediaPlayer.isPlaying.not()) {
+                                if (nowS == it.s && mediaPlayer.isPlaying.not()) {
                                     mediaPlayer = MediaPlayer.create(this, it.raw)
                                     mediaPlayer.start()
                                     mediaPlayer.isLooping = false
@@ -97,7 +97,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         1 -> {
                             for (it in Constant.bell_p) {
-                                if (now_s == it.s && mediaPlayer.isPlaying.not()) {
+                                if (nowS == it.s && mediaPlayer.isPlaying.not()) {
                                     mediaPlayer = MediaPlayer.create(this, it.raw)
                                     mediaPlayer.start()
                                     mediaPlayer.isLooping = false
@@ -137,6 +137,37 @@ class MainActivity : AppCompatActivity() {
         mediaPlayer.stop()
         running = false
         db.close()
+        Log.d("调试", "程序销毁")
+    }
+
+    override fun onBackPressed() {
+        fun finishAlertDialog() {
+            AlertDialog.Builder(this)
+                .setTitle("关闭")
+                .setMessage("您执行了返回操作，是否要关闭程序？")
+                .setPositiveButton("是") { _, _ ->
+                    finish()
+                }
+                .setNegativeButton("否", null)
+                .show()
+        }
+        if (auto.not()) {
+            AlertDialog.Builder(this)
+                .setTitle("提示")
+                .setMessage("您正在尝试退出手动模式，是否保存已经计算的时间？")
+                .setPositiveButton("保存") { _, _ ->
+                    auto = true
+                    finishAlertDialog()
+                }
+                .setNegativeButton("不保存") { _, _ ->
+                    db.execSQL("update mainTable set content = -1 where item = 0")
+                    db.execSQL("update mainTable set content = -1 where item = 1")
+                    auto = true
+                    finishAlertDialog()
+                }
+                .setNeutralButton("取消", null)
+                .show()
+        } else finishAlertDialog()
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -265,12 +296,14 @@ class MainActivity : AppCompatActivity() {
                 AlertDialog.Builder(this)
                     .setTitle("关于APP")
                     .setMessage(
-                        "[软件版本] 2.1\n" +
-                                "[版权声明] 华南理工大学 软件学院 Summer-lights\n\n" +
-                                "[更新记录]\n" +
-                                "2.1 - 2021年5月2日\n使用Android-Jetpack重构项目\n" +
-                                "2.0 - 2020年9月28日\n添加2020年四川高考语音包\n" +
-                                "1.0 - 2020年7月13日\n基于2018年四川高考语音包的首个版本"
+                        "[软件版本] ${BuildConfig.VERSION_NAME}\n" +
+                                "[版权声明] 华南理工大学 软件学院 Summer-lights"
+//                        "[软件版本] 2.1\n" +
+//                                "[版权声明] 华南理工大学 软件学院 Summer-lights\n\n" +
+//                                "[更新记录]\n" +
+//                                "2.1 - 2021年5月2日\n使用Android-Jetpack重构项目\n" +
+//                                "2.0 - 2020年9月28日\n添加2020年四川高考语音包\n" +
+//                                "1.0 - 2020年7月13日\n基于2018年四川高考语音包的首个版本"
                     )
                     .show()
             }
@@ -287,6 +320,7 @@ class MainActivity : AppCompatActivity() {
                             db.execSQL("update mainTable set content = -1 where item = 1")
                             finish()
                         }
+                        .setNeutralButton("取消", null)
                         .show()
                 } else finish()
             }
@@ -340,8 +374,8 @@ class MainActivity : AppCompatActivity() {
         val m = if (minute >= 10) minute.toString() else "0$minute"
         val s = if (second >= 10) second.toString() else "0$second"
         val audioSource = when (Constant.sourceIndex) {
-            0 -> "[音频来源]2018年高考全国卷\n"
-            1 -> "[音频来源]2020年高考全国卷\n"
+            0 -> "[音频来源] 2018年高考全国卷\n"
+            1 -> "[音频来源] 2020年高考全国卷\n"
             else -> ""
         }
         val text = audioSource + "${year}年${month}月${day}日 $hour:$m:$s \n" + if (auto) {
@@ -355,34 +389,34 @@ class MainActivity : AppCompatActivity() {
             if (hour >= 17) next = "最后一堂考试已经结束\n可以使用手动模式模拟考试"
             next
         } else {
-            val now_s = (System.currentTimeMillis() / 1000).toInt() - stTime.toInt()
-            val s2 = abs(now_s) % 60
-            val m2 = (abs(now_s) - s2) / 60
+            val nowS = (System.currentTimeMillis() / 1000).toInt() - stTime.toInt()
+            val s2 = abs(nowS) % 60
+            val m2 = (abs(nowS) - s2) / 60
             val s3 = if (s2 >= 10) s2.toString() else "0$s2"
             val m3 = if (m2 >= 10) m2.toString() else "0$m2"
             var next =
-                if (now_s >= 0) "已经开考 ${m3}分钟${s3}秒 \n"
+                if (nowS >= 0) "已经开考 ${m3}分钟${s3}秒 \n"
                 else "距离开考 ${m3}分钟${s3}秒 \n"
             when (subject) {
                 0 -> {
-                    if (now_s >= Constant.bell_a[8].s) {
+                    if (nowS >= Constant.bell_a[8].s) {
                         db.execSQL("update mainTable set content = -1 where item = 0")
                         db.execSQL("update mainTable set content = -1 where item = 1")
                         next = "考试结束！"
                     } else for (it in Constant.bell_a) {
-                        if (it.s > now_s) {
+                        if (it.s > nowS) {
                             next += "下一次播报的铃声是\n${it.title}"
                             break
                         }
                     }
                 }
                 1 -> {
-                    if (now_s >= Constant.bell_p[8].s) {
+                    if (nowS >= Constant.bell_p[8].s) {
                         db.execSQL("update mainTable set content = -1 where item = 0")
                         db.execSQL("update mainTable set content = -1 where item = 1")
                         next = "考试结束！"
                     } else for (it in Constant.bell_p) {
-                        if (it.s > now_s) {
+                        if (it.s > nowS) {
                             next += "下一次播报的铃声是\n${it.title}"
                             break
                         }
